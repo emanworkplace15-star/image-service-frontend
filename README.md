@@ -2,13 +2,30 @@
 
 Minimal Next.js (App Router) UI:
 
-- `/` — **public** gallery: presigned image URLs, paginated, status badges
+- `/` — **public** gallery: presigned image URLs, paginated, status badges, live status updates
 - `/login` — admin login (JWT kept in localStorage)
-- `/upload` — **admin**: presigned direct-to-S3 upload with progress
+- `/upload` — **admin**: presigned direct-to-S3 upload with progress + live "processing done/failed" status
 - `/records` — **admin**: paginated table of every DB row
 
 All pages are client components talking to the backend API — no server-side
 AWS access at all.
+
+## Realtime notifications
+
+The backend broadcasts `image:processed` / `image:failed` over Socket.IO
+(`socket.io-client`, path `/socket.io`, same `NEXT_PUBLIC_API_URL`). While
+logged in:
+
+- a toast appears ("Image processed" / "Image failed: …") on any event
+- the gallery flips the matching card's badge (and swaps in the fresh
+  presigned URL) without a refetch
+- the upload page reports the outcome of *its* upload
+
+The JWT rides in the socket handshake `auth` option (native `EventSource`/
+`WebSocket` can't set Authorization headers). Logged-out visitors get the
+fetch-based gallery but no live updates — the backend rejects unauthenticated
+sockets. React Strict Mode double-mounts are handled (pub-sub with proper
+unsubscribe cleanup; a single shared socket manager).
 
 ## Setup
 

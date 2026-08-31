@@ -1,7 +1,15 @@
 'use client';
 
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { api, errMessage } from '@/lib/api';
+import {
+  IMAGE_FAILED_EVENT,
+  IMAGE_PROCESSED_EVENT,
+  offImageEvent,
+  onImageEvent,
+  RealtimeFailedEvent,
+  RealtimeProcessedEvent,
+} from '@/lib/socket';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
@@ -40,6 +48,30 @@ export default function UploadPage() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
+  // originalKey of the most recent completed upload — used to scope the
+  // Lambda-result events to this upload. The toast provider covers the rest.
+  const [waitingKey, setWaitingKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!waitingKey) return;
+    const onProcessed = (evt: RealtimeProcessedEvent) => {
+      if (evt.originalKey !== waitingKey) return;
+      setWaitingKey(null);
+      setDone('Processing complete — it is in the gallery now.');
+    };
+    const onFailed = (evt: RealtimeFailedEvent) => {
+      if (evt.originalKey !== waitingKey) return;
+      setWaitingKey(null);
+      setError(`Processing failed: ${evt.failureReason ?? 'unknown error'}`);
+    };
+
+    const offProcessed = onImageEvent(IMAGE_PROCESSED_EVENT, onProcessed);
+    const offFailed = onImageEvent(IMAGE_FAILED_EVENT, onFailed);
+    return () => {
+      offProcessed();
+      offFailed();
+    };
+  }, [waitingKey]);
 
   function onFileChange(e: ChangeEvent<HTMLInputElement>) {
     setDone('');
@@ -75,6 +107,7 @@ export default function UploadPage() {
       setDone(
         'Upload complete. The Lambda will compress it shortly — check the gallery.',
       );
+      setWaitingKey(presign.key);
       setFile(null);
     } catch (err) {
       setError(errMessage(err));

@@ -19,10 +19,12 @@ export function getToken(): string | null {
 
 export function setToken(token: string) {
   window.localStorage.setItem('token', token);
+  window.dispatchEvent(new Event('auth-changed'));
 }
 
 export function clearToken() {
   window.localStorage.removeItem('token');
+  window.dispatchEvent(new Event('auth-changed'));
 }
 
 export async function api<T>(
