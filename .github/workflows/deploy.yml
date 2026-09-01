@@ -1,0 +1,39 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  id-token: write   # AWS OIDC temporary chabi ke liye mandatory hai
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::233338945000:role/GitHubActionsWorkflowRole
+          aws-region: us-east-1
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: my-frontend-app
+          IMAGE_TAG: ${{ github.sha }}
+          # 💡 Yahan apna actual backend api url de sakte hain agar pehle se bana hua hai
+          BACKEND_URL: "https://emanworkplace15-star.com"
+        run: |
+          # Build argument ke sath image build karna (Baking the backend URL)
+          docker build --build-arg REACT_APP_BACKEND_URL=$BACKEND_URL -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
