@@ -33,12 +33,13 @@ jobs:
           # 💡 Aapka exact AWS Load Balancer DNS link with /api route
           BACKEND_URL: "http://amazonaws.com"
         run: |
-          # Dono common arguments pass kar dete hain taake Next.js aur React dono support ho jayein
+          # Build arguments ke sath image build karna (Baking the correct backend URL)
           docker build \
             --build-arg REACT_APP_BACKEND_URL=$BACKEND_URL \
             --build-arg NEXT_PUBLIC_API_URL=$BACKEND_URL \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
