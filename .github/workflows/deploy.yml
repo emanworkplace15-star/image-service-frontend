@@ -31,7 +31,7 @@ jobs:
           ECR_REPOSITORY: my-frontend-app
           IMAGE_TAG: ${{ github.sha }}
           # 💡 Aapka exact AWS Load Balancer DNS link with /api route
-          BACKEND_URL: "http://amazonaws.com"
+          BACKEND_URL: "image-service-alb-1682278776.us-east-1.elb.amazonaws.com"
         run: |
           # Build arguments ke sath image build karna (Baking the correct backend URL)
           docker build \
