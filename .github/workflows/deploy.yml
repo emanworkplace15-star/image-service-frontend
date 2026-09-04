@@ -30,10 +30,15 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: my-frontend-app
           IMAGE_TAG: ${{ github.sha }}
-          # 💡 Yahan apna actual backend api url de sakte hain agar pehle se bana hua hai
-          BACKEND_URL: "https://emanworkplace15-star.com"
+          # 💡 Aapka exact AWS Load Balancer DNS link with /api route
+          BACKEND_URL: "http://amazonaws.com"
         run: |
-          # Build argument ke sath image build karna (Baking the backend URL)
-          docker build --build-arg REACT_APP_BACKEND_URL=$BACKEND_URL -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          # Dono common arguments pass kar dete hain taake Next.js aur React dono support ho jayein
+          docker build \
+            --build-arg REACT_APP_BACKEND_URL=$BACKEND_URL \
+            --build-arg NEXT_PUBLIC_API_URL=$BACKEND_URL \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
