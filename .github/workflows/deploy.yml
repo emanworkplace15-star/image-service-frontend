@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -21,44 +21,42 @@ jobs:
           role-to-assume: arn:aws:iam::233338945000:role/GitHubActionsWorkflowRole
           aws-region: us-east-1
 
-      - name: Log in to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
 
       # NEXT_PUBLIC_API_URL is baked into the Next.js client bundle at build
       # time, so the ALB URL must be set as a repository *variable* (not a
       # secret — it's a public URL): Settings → Secrets and variables →
       # Actions → Variables → NEXT_PUBLIC_API_URL = http://<alb-dns>
-      - name: Build and push frontend image
+      - name: Build static export
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: image-service-frontend
-          IMAGE_TAG: ${{ github.sha }}
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
         run: |
-          docker build \
-            --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          npm ci
+          npx next build
+          test -f out/index.html || { echo "static export missing out/index.html"; exit 1; }
+          echo "Built static export, NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-<unset>}" >> $GITHUB_STEP_SUMMARY
 
-      - name: Image summary
+      # Static site = private S3 bucket behind CloudFront (OAC), so plain
+      # sync writes need no bucket policy changes — the publish role already
+      # has s3:PutObject / s3:DeleteObject on it.
+      - name: Sync to S3
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: image-service-frontend
-          IMAGE_TAG: ${{ github.sha }}
-        run: echo "Pushed $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG (+ latest), NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-<unset>}" >> $GITHUB_STEP_SUMMARY
-
-      # ECS never watches ECR on its own — the pipeline is the trigger.
-      # The service starts a rolling deployment: new task registers with the
-      # ALB, the old one drains once the new one is healthy.
-      - name: Trigger ECS redeploy
+          BUCKET: image-service-static-frontend
         run: |
-          aws ecs update-service \
-            --cluster image-service \
-            --service frontend \
-            --force-new-deployment \
-            --region us-east-1 \
-            --query 'service.[serviceName,status,runningCount,desiredCount]' \
+          aws s3 sync out/ s3://$BUCKET --delete
+          echo "Synced to s3://$BUCKET" >> $GITHUB_STEP_SUMMARY
+
+      # Cached HTML/JS at the edge is stale after a sync — bust the CDN.
+      - name: Invalidate CloudFront
+        env:
+          DISTRIBUTION: <DISTRIBUTION_ID>
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION \
+            --paths "/*" \
+            --query 'Invalidation.[Id,Status]' \
             --output table
