@@ -6,6 +6,9 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   output: 'export',
   images: { unoptimized: true }, // no server to optimize images on
+  // S3 website endpoints resolve directory paths to their index.html, so
+  // each route exports as a directory (out/login/index.html -> /login/)
+  trailingSlash: true,
 };
 
 export default nextConfig;

@@ -40,9 +40,8 @@ jobs:
           test -f out/index.html || { echo "static export missing out/index.html"; exit 1; }
           echo "Built static export, NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-<unset>}" >> $GITHUB_STEP_SUMMARY
 
-      # Static site = private S3 bucket behind CloudFront (OAC), so plain
-      # sync writes need no bucket policy changes — the publish role already
-      # has s3:PutObject / s3:DeleteObject on it.
+      # Static site bucket (dev: served by the S3 website endpoint; the
+      # publish role already has s3:PutObject / s3:DeleteObject on it).
       - name: Sync to S3
         env:
           BUCKET: image-service-static-frontend
@@ -50,13 +49,6 @@ jobs:
           aws s3 sync out/ s3://$BUCKET --delete
           echo "Synced to s3://$BUCKET" >> $GITHUB_STEP_SUMMARY
 
-      # Cached HTML/JS at the edge is stale after a sync — bust the CDN.
-      - name: Invalidate CloudFront
-        env:
-          DISTRIBUTION: <DISTRIBUTION_ID>
-        run: |
-          aws cloudfront create-invalidation \
-            --distribution-id $DISTRIBUTION \
-            --paths "/*" \
-            --query 'Invalidation.[Id,Status]' \
-            --output table
+      # CloudFront invalidation (when CloudFront is enabled again — the
+      # account needs verification first):
+      # aws cloudfront create-invalidation --distribution-id <id> --paths "/*"
